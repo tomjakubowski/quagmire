@@ -2,8 +2,7 @@ use std::comm;
 use std::io::{BufferedReader, IoResult, LineBufferedWriter, TcpStream};
 
 struct Conn {
-    stream: TcpStream,
-    pub rx: comm::Receiver<u8>,
+    pub rx: comm::Receiver<Vec<u8>>,
     pub tx: comm::Sender<String>
 }
 
@@ -15,14 +14,19 @@ impl Conn {
 
         spawn(proc() {
             let mut reader = BufferedReader::new(server_stream);
+            let mut buf = [0u8, ..1024];
             loop {
-                let byte = reader.read_byte(); // lol
-                server_tx.send(byte.unwrap());
+                let n = reader.read(buf).unwrap();
+                if n == 0 {
+                    continue;
+                }
+                let vec = Vec::from_slice(buf.slice_to(n));
+                server_tx.send(vec);
             }
         });
 
         let (client_tx, client_rx) = comm::channel();
-        let mut client_stream = stream.clone();
+        let client_stream = stream.clone();
 
         spawn(proc() {
             let mut writer = LineBufferedWriter::new(client_stream);
@@ -33,7 +37,6 @@ impl Conn {
         });
 
         Ok(Conn {
-            stream: stream,
             rx: server_rx,
             tx: client_tx
         })
@@ -42,37 +45,32 @@ impl Conn {
 
 fn main() {
     use std::ascii::AsciiCast;
-    use std::io::timer::Timer;
-    use std::time::Duration;
 
-    let conn = Conn::new("localhost", 2424).unwrap_or_else(|e| {
-        fail!("connection error: {}", e)
-    });
-
-    let mut timer = Timer::new().unwrap();
-    let flush = timer.periodic(Duration::milliseconds(100));
-
-    let (conn_tx, conn_rx) = (conn.tx, conn.rx);
-
-    let mut stdin = std::io::stdio::stdin();
-
+    let stdin = std::io::stdio::stdin();
     let (inp_tx, inp_rx) = comm::channel();
-
     spawn(proc() {
+        let mut stdin = stdin;
         for line in stdin.lines() {
             inp_tx.send(line.unwrap());
         }
     });
 
+    let conn = Conn::new("localhost", 2424).unwrap_or_else(|e| {
+        fail!("connection error: {}", e)
+    });
+    let (conn_tx, conn_rx) = (conn.tx, conn.rx);
+
     loop {
         select! {
-            x = conn_rx.recv() => {
-                if x.is_ascii() { // FIXME
-                    print!("{}", x.to_ascii())
+            xs = conn_rx.recv() => {
+                for x in xs.iter() {
+                    if x.is_ascii() {
+                        print!("{}", x.to_ascii());
+                    }
                 }
+                std::io::stdio::flush();
             },
-            inp = inp_rx.recv() => conn_tx.send(inp),
-            () = flush.recv() => std::io::stdio::flush()
+            inp = inp_rx.recv() => conn_tx.send(inp)
         }
     }
 }
