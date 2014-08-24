@@ -1,8 +1,12 @@
 use std::comm;
 use std::io::{BufferedReader, IoResult, LineBufferedWriter, TcpStream};
 
+use telnet::TelnetEvent;
+
+mod telnet;
+
 struct Conn {
-    pub rx: comm::Receiver<Vec<u8>>,
+    pub rx: comm::Receiver<TelnetEvent>,
     pub tx: comm::Sender<String>
 }
 
@@ -13,15 +17,15 @@ impl Conn {
         let server_stream = stream.clone();
 
         spawn(proc() {
-            let mut reader = BufferedReader::new(server_stream);
-            let mut buf = [0u8, ..1024];
+            use telnet::Telnet;
+            let reader = BufferedReader::new(server_stream);
+            let mut telnet = Telnet::new(reader);
+
             loop {
-                let n = reader.read(buf).unwrap();
-                if n == 0 {
-                    continue;
+                let evts = telnet.read_events().unwrap();
+                for evt in evts.move_iter() {
+                    server_tx.send(evt);
                 }
-                let vec = Vec::from_slice(buf.slice_to(n));
-                server_tx.send(vec);
             }
         });
 
@@ -32,7 +36,7 @@ impl Conn {
             let mut writer = LineBufferedWriter::new(client_stream);
             loop {
                 let inp: String = client_rx.recv();
-                writer.write_str(inp.as_slice());
+                writer.write_str(inp.as_slice()).unwrap();
             }
         });
 
@@ -55,20 +59,25 @@ fn main() {
         }
     });
 
-    let conn = Conn::new("localhost", 2424).unwrap_or_else(|e| {
+    let conn = Conn::new("localhost", 2525).unwrap_or_else(|e| {
         fail!("connection error: {}", e)
     });
     let (conn_tx, conn_rx) = (conn.tx, conn.rx);
 
     loop {
         select! {
-            xs = conn_rx.recv() => {
-                for x in xs.iter() {
-                    if x.is_ascii() {
-                        print!("{}", x.to_ascii());
+            event = conn_rx.recv() => {
+                match event {
+                    telnet::Data(xs) => {
+                        for x in xs.iter() {
+                            if x.is_ascii() {
+                                print!("{}", x.to_ascii());
+                            }
+                        }
+                        std::io::stdio::flush();
                     }
+                    _ => unimplemented!()
                 }
-                std::io::stdio::flush();
             },
             inp = inp_rx.recv() => conn_tx.send(inp)
         }
