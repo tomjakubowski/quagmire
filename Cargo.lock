@@ -1,4 +1,12 @@
 [root]
 name = "quagmire"
 version = "0.0.1"
+dependencies = [
+ "posix 0.1.0 (git+https://github.com/mahkoh/posix.rs#a8f2af4e54ec6e4646a09591ef6a0590578b6c5b)",
+]
+
+[[package]]
+name = "posix"
+version = "0.1.0"
+source = "git+https://github.com/mahkoh/posix.rs#a8f2af4e54ec6e4646a09591ef6a0590578b6c5b"
 

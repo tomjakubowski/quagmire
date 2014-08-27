@@ -1,17 +1,19 @@
-#![feature(phase, globs)]
+#![feature(globs, macro_rules, phase)]
 
 #[phase(plugin, link)] extern crate log;
+extern crate posix;
 
 use std::comm;
-use std::io::{BufferedReader, IoResult, LineBufferedWriter, TcpStream};
+use std::io::{BufferedReader, IoResult, TcpStream};
 
 use telnet::TelnetEvent;
 
 mod telnet;
+mod tty;
 
 struct Conn {
     pub rx: comm::Receiver<TelnetEvent>,
-    pub tx: comm::Sender<String>
+    pub tx: comm::Sender<Vec<u8>>
 }
 
 impl Conn {
@@ -37,10 +39,10 @@ impl Conn {
         let client_stream = stream.clone();
 
         spawn(proc() {
-            let mut writer = LineBufferedWriter::new(client_stream);
+            let mut writer = client_stream;
             loop {
-                let inp: String = client_rx.recv();
-                writer.write_str(inp.as_slice()).unwrap();
+                let inp: Vec<u8> = client_rx.recv();
+                writer.write(inp.as_slice()).unwrap();
             }
         });
 
@@ -55,15 +57,20 @@ pub fn main() {
     use std::ascii::AsciiCast;
     use telnet as tel;
 
+    let mut tty = tty::Tty::new();
+
     let stdin = std::io::stdio::stdin();
-    let is_tty = stdin.get_ref().isatty();
-    debug!("stdin is a tty? {}", is_tty);
+    debug!("is stdin a tty? {}", tty.is_ok());
 
     let (inp_tx, inp_rx) = comm::channel();
+    let inp_tx2 = inp_tx.clone();
     spawn(proc() {
         let mut stdin = stdin;
         for line in stdin.lines() {
-            inp_tx.send(line.unwrap());
+            match line {
+                Ok(line) => inp_tx.send(line.into_bytes()),
+                Err(e) => error!("Couldn't read line: {}", e)
+            }
         }
     });
 
@@ -86,9 +93,19 @@ pub fn main() {
                     }
                     tel::Command(tel::Will(tel::Echo)) => {
                         debug!("received WILL ECHO");
+                        inp_tx2.send(vec![tel::IAC, tel::DO, tel::ECHO]);
+                        match tty.as_mut().map(|t| t.echo(tty::Off)) {
+                            Ok(_) => {},
+                            Err(e) => error!("Couldn't disable echo: {}", e)
+                        }
                     }
                     tel::Command(tel::Wont(tel::Echo)) => {
                         debug!("received WONT ECHO");
+                        inp_tx2.send(vec![tel::IAC, tel::DONT, tel::ECHO]);
+                        match tty.as_mut().map(|t| t.echo(tty::On)) {
+                            Ok(_) => {},
+                            Err(e) => error!("Couldn't disable echo: {}", e)
+                        }
                     }
                     cmd @ tel::Command(_) => {
                         debug!("Got command {}", cmd);

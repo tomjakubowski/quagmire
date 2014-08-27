@@ -1,11 +1,11 @@
 use std::io::IoResult;
 
-static ECHO: u8 =   1;
-static WILL: u8 = 251;
-static WONT: u8 = 252;
-static DO:   u8 = 253;
-static DONT: u8 = 254;
-static IAC:  u8 = 255;
+pub static ECHO: u8 =   1;
+pub static WILL: u8 = 251;
+pub static WONT: u8 = 252;
+pub static DO:   u8 = 253;
+pub static DONT: u8 = 254;
+pub static IAC:  u8 = 255;
 
 mod state {
     use super::{TelnetCommand, TelnetOption};

@@ -3,3 +3,6 @@
 name = "quagmire"
 version = "0.0.1"
 authors = ["Tom Jakubowski <tom@crystae.net>"]
+
+[dependencies.posix]
+git = "https://github.com/mahkoh/posix.rs"
