@@ -53,6 +53,23 @@ impl Conn {
     }
 }
 
+fn extract_args() -> Result<(String, u16), String> {
+    use std::from_str::FromStr;
+
+    let usage = "Usage: quagmire <host> <port>".to_string();
+    let (host, port) = match std::os::args().as_slice() {
+        [_, ref host, ref port] => {
+            (host.clone(), port.clone())
+        },
+        _ => return Err(usage)
+    };
+    let port: u16 = match FromStr::from_str(port.as_slice()) {
+        Some(p) => p,
+        None => return Err(usage)
+    };
+    Ok((host, port))
+}
+
 pub fn main() {
     use std::ascii::AsciiCast;
     use telnet as tel;
@@ -61,6 +78,16 @@ pub fn main() {
 
     let stdin = std::io::stdio::stdin();
     debug!("is stdin a tty? {}", tty.is_ok());
+
+    let mut stderr = std::io::stdio::stderr();
+    let (host, port) = match extract_args() {
+        Ok(r) => r,
+        Err(e) => {
+            (writeln!(stderr, "{}", e)).unwrap();
+            std::os::set_exit_status(64);
+            return;
+        }
+    };
 
     let (inp_tx, inp_rx) = comm::channel();
     let inp_tx2 = inp_tx.clone();
@@ -74,7 +101,7 @@ pub fn main() {
         }
     });
 
-    let conn = Conn::new("localhost", 2525).unwrap_or_else(|e| {
+    let conn = Conn::new(host.as_slice(), port).unwrap_or_else(|e| {
         fail!("connection error: {}", e)
     });
     let (conn_tx, conn_rx) = (conn.tx, conn.rx);
