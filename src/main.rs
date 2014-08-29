@@ -6,14 +6,39 @@ extern crate posix;
 use std::comm;
 use std::io::{BufferedReader, IoResult, TcpStream};
 
+use cmd::Command;
 use telnet::TelnetEvent;
 
 mod telnet;
 mod tty;
 
+enum ParsedInput {
+    CommandInput(Command),
+    RegularInput(String)
+}
+
+mod cmd {
+    /// Built in commands and 'other' commands to be passed off to extensions
+    #[deriving(Show)]
+    pub enum Command {
+        Quit,
+        Other(String)
+    }
+
+    impl Command {
+        pub fn from_string(name: String) -> Command {
+            match name.as_slice() {
+                "quit" => Quit,
+                _ => Other(name)
+            }
+        }
+    }
+}
+
 struct Conn {
     pub rx: comm::Receiver<TelnetEvent>,
-    pub tx: comm::Sender<Vec<u8>>
+    pub tx: comm::Sender<Vec<u8>>,
+    _stream: TcpStream
 }
 
 impl Conn {
@@ -41,14 +66,18 @@ impl Conn {
         spawn(proc() {
             let mut writer = client_stream;
             loop {
-                let inp: Vec<u8> = client_rx.recv();
-                writer.write(inp.as_slice()).unwrap();
+                let inp: Result<Vec<u8>, ()> = client_rx.recv_opt();
+                match inp {
+                    Ok(ref inp) => writer.write(inp.as_slice()).unwrap(),
+                    Err(..) => break
+                }
             }
         });
 
         Ok(Conn {
             rx: server_rx,
-            tx: client_tx
+            tx: client_tx,
+            _stream: stream
         })
     }
 }
@@ -70,13 +99,24 @@ fn extract_args() -> Result<(String, u16), String> {
     Ok((host, port))
 }
 
+fn parse_input(inp: String) -> ParsedInput {
+    {
+        let mut toks = inp.as_slice().trim().split(' ');
+        let first = toks.next().unwrap(); // this is safe
+        if first.starts_with("/") && !first.starts_with("//") {
+            let cmd = Command::from_string(first.slice_from(1).to_string());
+            return CommandInput(cmd);
+        }
+    }
+    RegularInput(inp)
+}
+
 pub fn main() {
     use std::ascii::AsciiCast;
     use telnet as tel;
 
     let mut tty = tty::Tty::new();
 
-    let stdin = std::io::stdio::stdin();
     debug!("is stdin a tty? {}", tty.is_ok());
 
     let mut stderr = std::io::stdio::stderr();
@@ -89,15 +129,22 @@ pub fn main() {
         }
     };
 
+    let stdin = std::io::stdio::stdin();
     let (inp_tx, inp_rx) = comm::channel();
-    let inp_tx2 = inp_tx.clone();
+
     spawn(proc() {
         let mut stdin = stdin;
         for line in stdin.lines() {
-            match line {
-                Ok(line) => inp_tx.send(line.into_bytes()),
-                Err(e) => error!("Couldn't read line: {}", e)
-            }
+            let line = line.unwrap_or_else(|e| fail!("Couldn't read line: {}", e));
+            let inp = parse_input(line);
+            // Ugh, feels like an awful hack. This won't scale for quits induced in some
+            // other way.
+            let done = match inp {
+                CommandInput(cmd::Quit) => true,
+                _ => false
+            };
+            inp_tx.send(inp);
+            if done { return }
         }
     });
 
@@ -105,8 +152,9 @@ pub fn main() {
         fail!("connection error: {}", e)
     });
     let (conn_tx, conn_rx) = (conn.tx, conn.rx);
+    let (raw_inp_tx, raw_inp_rx) = comm::channel();
 
-    loop {
+    'main: loop {
         select! {
             event = conn_rx.recv() => {
                 match event {
@@ -120,7 +168,7 @@ pub fn main() {
                     }
                     tel::Command(tel::Will(tel::Echo)) => {
                         debug!("received WILL ECHO");
-                        inp_tx2.send(vec![tel::IAC, tel::DO, tel::ECHO]);
+                        raw_inp_tx.send(vec![tel::IAC, tel::DO, tel::ECHO]);
                         match tty.as_mut().map(|t| t.echo(tty::Off)) {
                             Ok(_) => {},
                             Err(e) => error!("Couldn't disable echo: {}", e)
@@ -128,7 +176,7 @@ pub fn main() {
                     }
                     tel::Command(tel::Wont(tel::Echo)) => {
                         debug!("received WONT ECHO");
-                        inp_tx2.send(vec![tel::IAC, tel::DONT, tel::ECHO]);
+                        raw_inp_tx.send(vec![tel::IAC, tel::DONT, tel::ECHO]);
                         match tty.as_mut().map(|t| t.echo(tty::On)) {
                             Ok(_) => {},
                             Err(e) => error!("Couldn't disable echo: {}", e)
@@ -139,7 +187,25 @@ pub fn main() {
                     }
                 }
             },
-            inp = inp_rx.recv() => conn_tx.send(inp)
+            inp = inp_rx.recv_opt() => {
+                let inp = match inp {
+                    Err(_) => break 'main,
+                    Ok(inp) => inp
+                };
+                match inp {
+                    CommandInput(cmd) => {
+                        match cmd {
+                            cmd::Quit => {
+                                break 'main
+                            }
+                            cmd::Other(_) => println!("DO COMMAND: {}", cmd)
+                        }
+                    },
+                    RegularInput(s) => conn_tx.send(s.into_bytes())
+                }
+            },
+            raw_inp = raw_inp_rx.recv() => conn_tx.send(raw_inp)
         }
     }
+    println!("Goodbye!");
 }
