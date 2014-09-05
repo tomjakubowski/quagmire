@@ -114,8 +114,7 @@ pub fn main() {
             event = conn_read_rx.recv_opt() => {
                 let event = match event {
                     Ok(evt) => evt,
-                    Err(e) => {
-                        error!("{}", e);
+                    _ => {
                         break 'main;
                     }
                 };
