@@ -1,13 +1,20 @@
 #![feature(globs, macro_rules, phase)]
 
-#[phase(plugin, link)] extern crate log;
 extern crate posix;
+extern crate toml;
+extern crate xdg;
+
+#[phase(plugin, link)] extern crate log;
+extern crate serialize;
 
 use std::comm;
 
 use cmd::Command;
+use config::Config;
 use net::Conn;
+use xdg::XdgDirs;
 
+mod config;
 mod net;
 mod telnet;
 mod tty;
@@ -80,6 +87,12 @@ pub fn main() {
             std::os::set_exit_status(64);
             return;
         }
+    };
+
+    let xdg = XdgDirs::new();
+    let conf = match xdg.want_read_config("quagmire/config.toml") {
+        Some(p) => Config::new_from_path(p),
+        None => Config::new()
     };
 
     let stdin = std::io::stdio::stdin();
@@ -162,7 +175,16 @@ pub fn main() {
                             cmd::Quit => {
                                 break 'main
                             }
-                            cmd::Other(_) => println!("DO COMMAND: {}", cmd)
+                            cmd::Other(ref s) => {
+                                let expansion = match conf.expand_macro(s.as_slice()) {
+                                    Some(v) => v,
+                                    None => {
+                                        println!("Unknown command: /{}", s);
+                                        break;
+                                    }
+                                };
+                                conn_write_tx.send(expansion.into_bytes());
+                            }
                         }
                     },
                     RegularInput(s) => conn_write_tx.send(s.into_bytes())

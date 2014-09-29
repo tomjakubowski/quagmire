@@ -3,10 +3,22 @@ name = "quagmire"
 version = "0.0.1"
 dependencies = [
  "posix 0.1.0 (git+https://github.com/mahkoh/posix.rs#1865f629e1fa441fda8373e9a91c17e41ae6b487)",
+ "toml 0.1.0 (git+https://github.com/alexcrichton/toml-rs#8cdb2747de86ea7de6491ce5ba5dc522421bed7f)",
+ "xdg 0.1.0 (git+https://github.com/o11c/rust-xdg#ecda9d32c0930efdcb8242aed5449c8a0f20de78)",
 ]
 
 [[package]]
 name = "posix"
 version = "0.1.0"
 source = "git+https://github.com/mahkoh/posix.rs#1865f629e1fa441fda8373e9a91c17e41ae6b487"
+
+[[package]]
+name = "toml"
+version = "0.1.0"
+source = "git+https://github.com/alexcrichton/toml-rs#8cdb2747de86ea7de6491ce5ba5dc522421bed7f"
+
+[[package]]
+name = "xdg"
+version = "0.1.0"
+source = "git+https://github.com/o11c/rust-xdg#ecda9d32c0930efdcb8242aed5449c8a0f20de78"
 

@@ -6,3 +6,9 @@ authors = ["Tom Jakubowski <tom@crystae.net>"]
 
 [dependencies.posix]
 git = "https://github.com/mahkoh/posix.rs"
+
+[dependencies.toml]
+git = "https://github.com/alexcrichton/toml-rs"
+
+[dependencies.xdg]
+git = "https://github.com/o11c/rust-xdg"
