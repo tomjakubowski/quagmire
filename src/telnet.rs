@@ -1,11 +1,11 @@
 use std::io::IoResult;
 
-pub static ECHO: u8 =   1;
-pub static WILL: u8 = 251;
-pub static WONT: u8 = 252;
-pub static DO:   u8 = 253;
-pub static DONT: u8 = 254;
-pub static IAC:  u8 = 255;
+pub const ECHO: u8 =   1;
+pub const WILL: u8 = 251;
+pub const WONT: u8 = 252;
+pub const DO:   u8 = 253;
+pub const DONT: u8 = 254;
+pub const IAC:  u8 = 255;
 
 mod state {
     use super::{TelnetCommand, TelnetOption};
@@ -90,7 +90,7 @@ impl<R> Telnet<R> where R: Reader {
                     if x == IAC {
                         // Wrap up + ship off any data preceding this byte
                         if from < i {
-                            let data = Vec::from_slice(buf.slice(from, i));
+                            let data = buf.slice(from, i).to_vec();
                             res.push(Data(data));
                         }
                         self.state = state::Iac;
@@ -126,7 +126,7 @@ impl<R> Telnet<R> where R: Reader {
         }
         // Push any data left over from the buffer as a Data event
         if from < buf.len() {
-            let data = Vec::from_slice(buf.slice_from(from));
+            let data = buf.slice_from(from).to_vec();
             res.push(Data(data));
         }
         Ok(res)
@@ -149,7 +149,7 @@ mod test {
 
     #[test]
     fn test_data() {
-        let buf = Vec::from_slice(b"Hello, world!");
+        let buf = b"Hello, world!".to_vec();
         let mut telnet = Telnet::new(MemReader::new(buf.clone()));
         let evts = telnet.read_events().unwrap();
         assert_eq!(evts[0], Data(buf));
@@ -168,13 +168,15 @@ mod test {
         let data1 = b"Hello, world!";
         let cmd = [IAC, WILL, ECHO];
         let data2 = b"Goodbye, world!";
-        let all = vec![].append(data1).append(cmd).append(data2);
+        let mut all = data1.to_vec();
+        all.push_all(cmd);
+        all.push_all(data2);
         let mut telnet = Telnet::new(MemReader::new(all));
         let evts = telnet.read_events().unwrap();
         assert_eq!(evts.len(), 3);
-        assert_eq!(evts[0], Data(Vec::from_slice(data1)));
+        assert_eq!(evts[0], Data(data1.to_vec()));
         assert_eq!(evts[1], Command(Will(Echo)));
-        assert_eq!(evts[2], Data(Vec::from_slice(data2)));
+        assert_eq!(evts[2], Data(data2.to_vec()));
     }
 
     #[test]

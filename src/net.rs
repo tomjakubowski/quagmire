@@ -26,7 +26,7 @@ impl Conn {
                     Ok(evts) => evts,
                     Err(..) => break
                 };
-                for evt in evts.move_iter() {
+                for evt in evts.into_iter() {
                     read_tx.send(evt);
                 }
             }
