@@ -101,7 +101,7 @@ pub fn main() {
     spawn(proc() {
         let mut stdin = stdin;
         for line in stdin.lines() {
-            let line = line.unwrap_or_else(|e| fail!("Couldn't read line: {}", e));
+            let line = line.unwrap_or_else(|e| panic!("Couldn't read line: {}", e));
             let inp = parse_input(line);
             // Ugh, feels like an awful hack. And it won't work for quits induced in some
             // other way (like, the server closing the connection).
@@ -118,7 +118,7 @@ pub fn main() {
     let (conn_read_tx, conn_read_rx) = comm::channel();
     let mut conn = Conn::new(host.as_slice(), port, conn_read_tx,
                              conn_write_rx).unwrap_or_else(|e| {
-        fail!("connection error: {}", e)
+        panic!("connection error: {}", e)
     });
     let (raw_inp_tx, raw_inp_rx) = comm::channel();
 
