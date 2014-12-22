@@ -21,7 +21,7 @@ impl Config {
     }
 
     pub fn expand_macro(&self, name: &str) -> Option<String> {
-        self.macros.find_equiv(name).map(|a| a.expand())
+        self.macros.get(name).map(|a| a.expand())
     }
 }
 

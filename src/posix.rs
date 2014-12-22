@@ -1,5 +1,7 @@
 // These are wrong yeah yeah
 
+#![allow(non_camel_case_types)]
+
 pub mod termios {
     use libc::{c_int, c_uchar, c_uint};
 
