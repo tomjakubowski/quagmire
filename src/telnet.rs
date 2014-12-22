@@ -1,4 +1,7 @@
 use std::io::IoResult;
+pub use self::TelnetEvent::*;
+pub use self::TelnetCommand::*;
+pub use self::TelnetOption::*;
 
 pub const ECHO: u8 =   1;
 pub const WILL: u8 = 251;
@@ -9,7 +12,9 @@ pub const IAC:  u8 = 255;
 
 mod state {
     use super::{TelnetCommand, TelnetOption};
+    pub use self::State::*;
 
+    #[deriving(Copy)]
     pub enum State {
         Data,
         Iac,
@@ -18,6 +23,8 @@ mod state {
 
     impl PartialEq for State {
         fn eq(&self, other: &State) -> bool {
+            use self::State::*;
+
             match (*self, *other) {
                 (Data, Data) | (Iac, Iac) => true,
                 // vv this is gross, but it works for its purpose I think.
@@ -52,6 +59,8 @@ pub enum TelnetOption {
 
 impl TelnetOption {
     fn from_u8(x: u8) -> TelnetOption {
+        use self::TelnetOption::*;
+
         match x {
             ECHO => Echo,
             _ => UnknownOption(x)
@@ -80,7 +89,7 @@ impl<R> Telnet<R> where R: Reader {
     /// (/me wishes for `yield` and impl Iterator)
     pub fn read_events(&mut self) -> IoResult<Vec<TelnetEvent>> {
         let mut res = vec![];
-        let nbytes = try!(self.rdr.read(self.buf));
+        let nbytes = try!(self.rdr.read(&mut self.buf));
         let buf = self.buf.slice_to(nbytes);
 
         let mut from = 0; // Marks the boundary of the last event in the buffer
@@ -142,7 +151,7 @@ mod test {
     #[test]
     fn test_empty() {
         let buf = [];
-        let mut telnet = Telnet::new(BufReader::new(buf));
+        let mut telnet = Telnet::new(BufReader::new(&buf));
         let evts = telnet.read_events();
         assert!(evts.is_err());
     }
@@ -169,7 +178,7 @@ mod test {
         let cmd = [IAC, WILL, ECHO];
         let data2 = b"Goodbye, world!";
         let mut all = data1.to_vec();
-        all.push_all(cmd);
+        all.push_all(&cmd);
         all.push_all(data2);
         let mut telnet = Telnet::new(MemReader::new(all));
         let evts = telnet.read_events().unwrap();
@@ -182,7 +191,7 @@ mod test {
     #[test]
     fn test_iac_escaping() {
         let data = [IAC, IAC];
-        let mut telnet = Telnet::new(BufReader::new(data));
+        let mut telnet = Telnet::new(BufReader::new(&data));
         let evts = telnet.read_events().unwrap();
         println!("{}", evts);
         assert_eq!(evts.len(), 1);

@@ -1,6 +1,6 @@
 #![feature(globs, macro_rules, phase)]
 
-extern crate posix;
+extern crate libc;
 extern crate toml;
 extern crate xdg;
 
@@ -8,14 +8,19 @@ extern crate xdg;
 extern crate serialize;
 
 use std::comm;
+use std::thread::Thread;
 
 use cmd::Command;
+use cmd::Command::*;
 use config::Config;
 use net::Conn;
 use xdg::XdgDirs;
 
+use self::ParsedInput::*;
+
 mod config;
 mod net;
+mod posix;
 mod telnet;
 mod tty;
 
@@ -25,6 +30,8 @@ enum ParsedInput {
 }
 
 mod cmd {
+    pub use self::Command::*;
+
     /// Built in commands and 'other' commands to be passed off to extensions
     #[deriving(Show)]
     pub enum Command {
@@ -43,7 +50,7 @@ mod cmd {
 }
 
 fn extract_args() -> Result<(String, u16), String> {
-    use std::from_str::FromStr;
+    use std::str::FromStr;
 
     let usage = "Usage: quagmire <host> <port>".to_string();
     let (host, port) = match std::os::args().as_slice() {
@@ -83,7 +90,7 @@ pub fn main() {
     let (host, port) = match extract_args() {
         Ok(r) => r,
         Err(e) => {
-            (writeln!(stderr, "{}", e)).unwrap();
+            (writeln!(&mut stderr, "{}", e)).unwrap();
             std::os::set_exit_status(64);
             return;
         }
@@ -98,9 +105,9 @@ pub fn main() {
     let stdin = std::io::stdio::stdin();
     let (inp_tx, inp_rx) = comm::channel();
 
-    spawn(proc() {
+    Thread::spawn(move || {
         let mut stdin = stdin;
-        for line in stdin.lines() {
+        for line in stdin.lock().lines() {
             let line = line.unwrap_or_else(|e| panic!("Couldn't read line: {}", e));
             let inp = parse_input(line);
             // Ugh, feels like an awful hack. And it won't work for quits induced in some
@@ -112,7 +119,7 @@ pub fn main() {
             if done { return }
             inp_tx.send(inp);
         }
-    });
+    }).detach();
 
     let (conn_write_tx, conn_write_rx) = comm::channel();
     let (conn_read_tx, conn_read_rx) = comm::channel();

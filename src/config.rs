@@ -55,7 +55,7 @@ mod test {
         commands = ["look", "who"]
         "#);
 
-        assert_eq!(config.expand_macro("foo"), Some("look\nwho".to_string()));
+        assert_eq!(config.expand_macro("foo"), Some("look\nwho\n".to_string()));
         assert_eq!(config.expand_macro("bar"), None);
     }
 }

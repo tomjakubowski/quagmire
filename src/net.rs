@@ -1,6 +1,8 @@
 use std::comm;
 use std::io::{BufferedReader, IoResult, TcpStream};
-use super::telnet::TelnetEvent;
+use std::thread::Thread;
+
+use telnet::TelnetEvent;
 
 pub type ConnReadTx = comm::Sender<TelnetEvent>;
 pub type ConnWriteRx = comm::Receiver<Vec<u8>>;
@@ -12,10 +14,10 @@ pub struct Conn {
 impl Conn {
     pub fn new(host: &str, port: u16, read_tx: ConnReadTx,
                write_rx: ConnWriteRx) -> IoResult<Conn> {
-        let stream = try!(TcpStream::connect(host, port));
+        let stream = try!(TcpStream::connect((host, port)));
         let server_stream = stream.clone();
 
-        spawn(proc() {
+        Thread::spawn(move || {
             use telnet::Telnet;
             let reader = BufferedReader::new(server_stream);
             let mut telnet = Telnet::new(reader);
@@ -30,11 +32,11 @@ impl Conn {
                     read_tx.send(evt);
                 }
             }
-        });
+        }).detach();
 
         let client_stream = stream.clone();
 
-        spawn(proc() {
+        Thread::spawn(move || {
             let mut writer = client_stream;
             loop {
                 let inp: Result<Vec<u8>, ()> = write_rx.recv_opt();
@@ -47,7 +49,7 @@ impl Conn {
                     Err(..) => break
                 }
             }
-        });
+        }).detach();
 
         Ok(Conn { stream: stream })
     }

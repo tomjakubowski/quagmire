@@ -1,5 +1,7 @@
 use std::io::IoResult;
 
+pub use self::Toggle::*;
+
 use posix::termios::{mod, ECHO, TCSANOW};
 use posix::unistd::STDIN_FILENO;
 
@@ -23,6 +25,7 @@ pub enum Toggle {
 
 /// Note: `Tty` stores the current termios state in the constructor and then restores it
 /// in the dtor.
+#[deriving(Copy)]
 pub struct Tty {
     orig: termios::termios
 }

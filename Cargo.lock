@@ -2,23 +2,17 @@
 name = "quagmire"
 version = "0.0.1"
 dependencies = [
- "posix 0.1.0 (git+https://github.com/mahkoh/posix.rs)",
- "toml 0.1.0 (git+https://github.com/alexcrichton/toml-rs)",
- "xdg 0.1.0 (git+https://github.com/tomjakubowski/rust-xdg?ref=fix-hashmap-imports)",
+ "toml 0.1.6 (git+https://github.com/alexcrichton/toml-rs)",
+ "xdg 0.1.0 (git+https://github.com/o11c/rust-xdg)",
 ]
 
 [[package]]
-name = "posix"
-version = "0.1.0"
-source = "git+https://github.com/mahkoh/posix.rs#c879bf740822d0c608715f1093456abe69c74c2c"
-
-[[package]]
 name = "toml"
-version = "0.1.0"
-source = "git+https://github.com/alexcrichton/toml-rs#78acb5081d57bec85fd51ecb596506b14d17d430"
+version = "0.1.6"
+source = "git+https://github.com/alexcrichton/toml-rs#95c6161dcec9cdaada7e1507c6e536eeb7623ed4"
 
 [[package]]
 name = "xdg"
 version = "0.1.0"
-source = "git+https://github.com/tomjakubowski/rust-xdg?ref=fix-hashmap-imports#bfd69afc1217d028b83f6b06ad0c9d5b5ff13e68"
+source = "git+https://github.com/o11c/rust-xdg#c5ca764bc3aa49aa6506bcdf9075f9c7c4a10611"
 
